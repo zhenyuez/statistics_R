@@ -1,0 +1,208 @@
+---
+title: "Modeling and prediction for movies"
+output: 
+  html_document: 
+    fig_height: 4
+    highlight: pygments
+    theme: spacelab
+---
+
+## Setup
+
+### Load packages
+
+```{r load-packages, message = FALSE}
+library(ggplot2)
+library(dplyr)
+library(statsr)
+```
+
+### Load data
+```{r load-data}
+load("movies.Rdata")
+str(movies)
+```
+
+* * *
+
+## Part 1: Data
+The data set is comprised of 651 randomly sampled movies produced and released 
+before 2016. Some of these variables are only there for informational purposes and 
+do not make any sense to include in a statistical analysis. This dataset includes
+information from Rotten Tomatoes and IMDB for a random sample of movies.
+Since this data is collected from randomly selected movies (random sampling) for a 
+large movie sets. Thus these results can only be generalized, instead of establish
+a causal relationship.
+
+* * *
+
+## Part 2: Research question
+Since the project suppose that is interested in learning what attributes make a 
+movie popular. The purpose of this project is about linear regression. Thus I need 
+to find a numerical quantity for the response variable, otherwise this will be 
+classification problem.
+The research question that I proposed is 
+
+#### " What is the audience score for a movie (something like the popularity of the movie) related by other variable in the dataset, such as imdb rating, critics rating, top 200 box office?"
+
+This question is usually useful for the filmmakers so that they can roughly 
+estimate what factor is important for making a movie popular.  For the audience, 
+they can decide if they want to watch a movie depends on its popularity.
+
+* * *
+
+## Part 3: Exploratory data analysis
+
+In this datasets, something I will not include when building the predicting model. 
+Such as the title of the movie, imdb url, rotten tomatoes url. These things has 
+nothing to do with the movie's rating. For the studio column, there are 211 studios 
+as factor variable, thus I will also ignore this. For the director and 5 actor 
+columns, there are so many factors when including in the predicting model. I will 
+also ignore these variables. Also for the movie runtime. 
+
+For the theater and dvd release  dates, there are 3 columns for each, I will turn these into time format in R.
+
+First let's see if the audience movie rating is related to the box office.
+```{r}
+ggplot(movies,aes(x=top200_box, y=audience_score, fill=top200_box)) + geom_boxplot()
+ggplot(movies,aes(x=genre, y=audience_score, fill=top200_box)) + geom_boxplot()+theme(axis.text.x = element_text(angle = 90, hjust = 1)) 
+```
+
+In this plot, we can clearly see that for movies that belong to top 200 box offices, the mean of audience socre is 20 points higher than other movies. This means that top200_box variable is very much related to the audience score.
+
+Another quantity to determine the popularity of the movie is to find the relation between other variables and the "top200_box". 
+
+```{r}
+table(movies$top200_box, movies$title_type)
+table(movies$top200_box, movies$genre)
+table(movies$top200_box, movies$mpaa_rating)
+table(movies$top200_box, movies$best_pic_nom)
+table(movies$top200_box, movies$best_pic_win)
+```
+
+From the above analysis, there are total 15 movies with top 200 box office. Also  it is clear seen that for feature film movies with type Action or drama has very high movie box office. The rating of these movies are from G, PG, PG-13 and R.  
+Meanwhile focusing on the best_pic_nom or best_pic_win columns, it is cleary seen that the top200_box is not related to if a movie is nominated or won the best picture. Actually most top 200 box office movies are not even nominated as best pictures. Thus I will also ignore these columns for the model. 
+
+At the same time let's check which genre of movie has more positive reviews.
+
+```{r}
+ggplot(movies, aes(x = genre, fill = audience_rating)) +
+     geom_bar(position='dodge') + theme(axis.text.x = element_text(angle = 90, hjust = 1)) 
+```
+
+This picture shows that for movies that are drama has most of upright audience 
+rating. Other genres like comedy, action and mystery movies has more spilled than upright movies. Thus I would not consider genre in the predictor.  
+
+Now I will consider the theater release month of the movie and see if this is related with a popular movie. 
+```{r}
+ggplot(movies, aes(x = thtr_rel_month, fill = top200_box)) +
+     geom_bar(position='dodge') + theme(axis.text.x = element_text(angle = 90, hjust = 1)) 
+```
+
+In the above plot, it clearly seen that the top200_box movies are mostly con
+centrated in the June and December, which is the holiday seasons. Thus we need to consider the release month of the movie in theater. I did similar things for theater release year and day, which I do not see any obvious behavior. Same thing for the dvd release date. 
+
+* * *
+
+## Part 4: Modeling
+Now let's build a model to see the relation between audience score and other quantities use multi-variable linear regression model.
+The criteria I use is by forward selecting the features, while look at if the adjusted R square is increasing or not. First I will only look at one numerical variable for predicting. 
+
+```{r}
+mlr=lm(audience_score~runtime, data=movies)
+summary(mlr)$adj.r.squared
+mlr=lm(audience_score~thtr_rel_month, data=movies)
+summary(mlr)$adj.r.squared
+mlr=lm(audience_score~imdb_rating, data=movies)
+summary(mlr)$adj.r.squared
+mlr=lm(audience_score~imdb_num_votes, data=movies)
+summary(mlr)$adj.r.squared
+mlr=lm(audience_score~critics_score, data=movies)
+summary(mlr)$adj.r.squared
+```
+In here is clearly seen that with one numerical variable, **imdb_rating** give the highest adjusted R square value 0.747. Thus it is the first variable to consider in the model. Now let's consider add another variable into the model.
+
+```{r}
+mlr=lm(audience_score~imdb_rating+critics_score, data=movies)
+summary(mlr)$adj.r.squared
+mlr=lm(audience_score~imdb_rating+top200_box, data=movies)
+summary(mlr)$adj.r.squared
+mlr=lm(audience_score~imdb_rating+thtr_rel_month, data=movies)
+summary(mlr)$adj.r.squared
+mlr=lm(audience_score~imdb_rating+title_type, data=movies)
+summary(mlr)$adj.r.squared
+mlr=lm(audience_score~imdb_rating+genre, data=movies)
+summary(mlr)$adj.r.squared
+mlr=lm(audience_score~imdb_rating+best_pic_nom, data=movies)
+summary(mlr)$adj.r.squared
+mlr=lm(audience_score~imdb_rating+best_pic_win, data=movies)
+summary(mlr)$adj.r.squared
+```
+It is clearly see that most variables have slightly improvement on the adjusted R square value,except the genre, which increased the adjusted R square to **0.7611**.
+Now two variables are important here. ** imdb_rating,  genre **
+
+Let's add the third varible into the model.
+```{r}
+mlr=lm(audience_score~imdb_rating+genre+critics_score, data=movies)
+summary(mlr)$adj.r.squared
+mlr=lm(audience_score~imdb_rating+genre+thtr_rel_month, data=movies)
+summary(mlr)$adj.r.squared
+mlr=lm(audience_score~imdb_rating+genre+top200_box, data=movies)
+summary(mlr)$adj.r.squared
+```
+
+It's nice to see that add critics_score will slightly increase the adjusted R square to **0.7643**.
+
+Let's consider add another one into the model.
+```{r}
+mlr=lm(audience_score~imdb_rating+genre+critics_score+top200_box, data=movies)
+summary(mlr)$adj.r.squared
+mlr=lm(audience_score~imdb_rating+genre+critics_score+thtr_rel_month, data=movies)
+summary(mlr)$adj.r.squared
+```
+Add the thtr_rel_month slightly increase the adjusted R square to **0.7651**.
+Let's see add one more.
+```{r}
+mlr=lm(audience_score~imdb_rating+genre+critics_score+thtr_rel_month+top200_box, data=movies)
+summary(mlr)$adj.r.squared
+mlr=lm(audience_score~imdb_rating+genre+critics_score+thtr_rel_month+imdb_num_votes, data=movies)
+summary(mlr)$adj.r.squared
+```
+Here add other predictors like top200_box, imdb_num_votes has no or very tiny improvment on the adjusted R square value. 
+Thus the final model which I consider is including four variables **imdb_rating**, **genre**, **critics_score**,**thtr_rel_month**.
+
+```{r}
+mlr=lm(audience_score~imdb_rating+genre+critics_score+thtr_rel_month, data=movies)
+summary(mlr)
+```
+From the coefficients, we imdb_rating has the highest slope in determine audience score. 
+
+$audience_score=-36.32+14.854*imdb_rating+9.25*genre_animation-0.038*Art+2.15*comedy+1.03*document-0.202*drama$
+$-5.06*horror+4.49*music-6.37*mystery+1.41*other-0.31*scifi+0.066*critics_score-0.19*thtr_rel_month.$
+
+In here the factor variable genre the baseline is action type. Since numerical variables like imdb_rating, critics_score and theater release month is just a number, we can directly put into formular. The coefficient before imdb_rating means that if imdb_rating increase by one point, while holding others constant, the audience score will increase by 14.854 point. For the genre type, if it is action type, since it is the baseline, no change in the audience score. But if it is scifi, holding other constant, just decrease the score by 0.31. If it is animation, holding other constant, the score will increase by 9.25.
+
+* * *
+
+## Part 5: Prediction
+Now I will pick a movie title "star wars the force awaken". It has imdb_rating is 8.2, genre type is scifi, critics score is 92, release month is december, critics score is 92. Use the above formular, audience score is
+```{r}
+#-0.31 comes from scifi type movie
+-36.3208+14.8543*8.2-0.31002+0.06569*92-0.19*12
+newdata = data.frame(imdb_rating=8.2, genre='Science Fiction & Fantasy',critics_score=92,thtr_rel_month=12)
+predict(mlr, newdata, interval="predict") 
+```
+
+The prediction fitted value is audience score is 88.88, while in the rotten tomato website, the audience score is 89. It's a incredible accurate for predicting such a movie audience score.
+The prediction confidence interval for 95% confidence is that between 68~109, which means that we are 95% confident that the audience score is between 68 to 109, while there are actually limit here the score can never be more than 100.
+
+[imdb information link is]
+(http://www.imdb.com/title/tt2488496/)
+[rotten tomatto link is] 
+(https://www.rottentomatoes.com/m/star_wars_episode_vii_the_force_awakens/)
+
+* * *
+
+## Part 6: Conclusion
+ So far we build a linear regression model for predicting the audience score based on movies imdb_rating, genre, critics_score and theater release month. 
+As we can see that this model predict the star wars movie the force awakens very accurately for the fitted value, and the confidence interval include the true score. It would be interesting to consider the box office as the response variable, so that I can better see how this model behaves on these variables. Since in this model, the audience score is, as we can guess related to the imdb_rating. But the interesting thing is how are these things related to the total box office in dollars. 
